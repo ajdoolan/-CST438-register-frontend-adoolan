@@ -5,8 +5,14 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Radio from '@mui/material/Radio';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Cookies from 'js-cookie';
+import {SERVER_URL} from '../constants.js'
 import {DataGrid} from '@mui/x-data-grid';
 import {SEMESTER_LIST} from '../constants.js'
+import ButtonGroup from '@mui/material/ButtonGroup';
+import AddStudent from './AddStudent';
 
 // user selects from a list of  (year, semester) values
 class Semester extends Component {
@@ -14,13 +20,75 @@ class Semester extends Component {
       super(props);
       this.state = {selected: SEMESTER_LIST.length-1 };
     }
- 
+
    onRadioClick = (event) => {
     console.log("Semester.onRadioClick "+JSON.stringify(event.target.value));
     this.setState({selected: event.target.value});
   }
-  
-  render() {    
+
+  fetchStudents = () => {
+    console.log("SchedList.fetchCourses");
+    const token = Cookies.get('XSRF-TOKEN');
+
+    fetch(`${SERVER_URL}/students?year=${this.props.location.year}&semester=${this.props.location.semester}`,
+      {
+        method: 'GET',
+        headers: { 'X-XSRF-TOKEN': token }
+      } )
+    .then((response) => {
+      console.log("FETCH RESP:"+response);
+      return response.json();})
+    .then((responseData) => {
+      // do a sanity check on response
+      if (Array.isArray(responseData.students)) {
+        this.setState({
+          students: responseData.students,
+        });
+      } else {
+        toast.error("Fetch failed.", {
+          position: toast.POSITION.BOTTOM_LEFT
+        });
+      }
+    })
+    .catch(err => {
+      toast.error("Fetch failed.", {
+          position: toast.POSITION.BOTTOM_LEFT
+        });
+        console.error(err);
+    })
+  }
+
+  addStudent = (student) => {
+    const token = Cookies.get('XSRF-TOKEN');
+
+    fetch(`${SERVER_URL}student`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   'X-XSRF-TOKEN': token  },
+        body: JSON.stringify(student)
+      })
+    .then(res => {
+        if (res.ok) {
+          toast.success("Student successfully added", {
+              position: toast.POSITION.BOTTOM_LEFT
+          });
+          // this.fetchStudents();
+        } else {
+          toast.error("Error when adding", {
+              position: toast.POSITION.BOTTOM_LEFT
+          });
+          console.error('Post http status =' + res.status);
+        }})
+    .catch(err => {
+      toast.error("Error when adding", {
+            position: toast.POSITION.BOTTOM_LEFT
+        });
+        console.error(err);
+    })
+  }
+
+  render() {
       const icolumns = [
       {
         field: 'id',
@@ -40,8 +108,8 @@ class Semester extends Component {
         )
       },
       { field: 'name', headerName: 'Semester', width: 200 }
-      ];       
-       
+      ];
+
     return (
        <div>
          <AppBar position="static" color="default">
@@ -54,17 +122,22 @@ class Semester extends Component {
          <div align="left" >
               <div style={{ height: 400, width: '100%', align:"left"   }}>
                 <DataGrid   rows={SEMESTER_LIST} columns={icolumns} />
-              </div>                
-              <Button component={Link} 
-                      to={{pathname:'/schedule' , 
-                      year:SEMESTER_LIST[this.state.selected].year, 
-                      semester:SEMESTER_LIST[this.state.selected].name}} 
+              </div>
+              <Button component={Link}
+                      to={{pathname:'/schedule' ,
+                      year:SEMESTER_LIST[this.state.selected].year,
+                      semester:SEMESTER_LIST[this.state.selected].name}}
                 variant="outlined" color="primary" style={{margin: 10}}>
                 Get Schedule
               </Button>
+
+              <ButtonGroup>
+                <AddStudent addStudent={this.addStudent}  />
+				      </ButtonGroup>
           </div>
       </div>
     )
   }
 }
+
 export default Semester;
